@@ -1,0 +1,141 @@
+---
+- name: Setup servers
+  hosts: aws_ec2
+  remote_user: ubuntu
+  become: True
+  
+  vars:
+    NODEJS_VERSION: "18"
+    ansible_distribution_release: "jammy"
+
+  tasks:
+
+    # install nginx
+    - name: install the nginx package
+      tags: nginx
+      apt:
+        name: nginx
+        state: present
+        update_cache: yes
+    
+    # copy html document to server
+    - name: copy html document to the server
+      tags: copy_files
+      copy:
+        src: ./files/index.html
+        dest: /var/www/html/index.html
+        owner: www-data
+        group: www-data
+        mode: u=rw,g=r,o=r
+    
+    # copy nginx config to server
+    - name: copy nginx config file to the server
+      copy:
+        src: ./files/nginx.conf
+        dest: /etc/nginx/sites-available/default
+
+    - name: Enable site, link nginx config
+      file:
+        src: /etc/nginx/sites-available/default
+        dest: /etc/nginx/sites-enabled/default
+        state: link
+    
+    # reload the nginx service
+    - name: reload nginx service
+      tags: nginx
+      systemd:
+        name: nginx
+        state: reloaded
+        enabled: true
+        daemon_reload: true
+  
+    # install node and npm
+    - name: Install GPG
+      tags: nodejs
+      apt:
+        name: gnupg
+        update_cache: yes
+        state: present
+    
+    # add gpg key for nodesource
+    - name: Install the gpg key for nodejs LTS
+      apt_key:
+        url: "https://deb.nodesource.com/gpgkey/nodesource.gpg.key"
+        state: present
+    
+    # add nodesource repository to Ubuntu
+    - name: Install the nodejs LTS repos
+      apt_repository:
+        repo: "deb https://deb.nodesource.com/node_{{ NODEJS_VERSION }}.x {{ ansible_distribution_release }} main"
+        state: present
+        update_cache: yes
+
+    # install nodejs on server
+    - name: Install NodeJS
+      apt:
+        name: nodejs
+        state: latest
+
+    # Node app setup
+    - name: Create app directory for node app
+      file:
+        path: /var/www/html/app
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: 0604
+
+    # copy files needed to setup app on server
+    - name: Copy package-lock.json to server
+      copy:
+        src: ./files/app/package-lock.json
+        dest: /var/www/html/app/package-lock.json
+        owner: www-data
+        group: www-data
+        mode: 0644
+
+    - name: Copy package.json to server
+      tags: copy_files
+      copy:
+        src: ./files/app/package.json
+        dest: /var/www/html/app/package.json
+        owner: www-data
+        group: www-data
+        mode: 0644
+
+    # copy app.js to server
+    - name: Copy app.js to server
+      tags: copy_files
+      copy:
+        src: ./files/app/app.js
+        dest: /var/www/html/app/app.js
+        owner: www-data
+        group: www-data
+        mode: 0644
+
+    # copy service file to start app to server
+    - name: Create service file
+      template:
+        src: ./files/node_app.service
+        dest: /etc/systemd/system/node_app.service
+      register: service_conf
+  
+    # perform systemctl daemon-reload to register new service
+    - name: Reload systemd daemon
+      tags: app, deploy, systemd
+      systemd:
+        daemon_reload: yes
+      when: service_conf.changed
+
+    # install node app dependencies
+    - name: Install dependencies from lockfile
+      shell: npm ci
+      args:
+        chdir: /var/www/html/app
+    
+    # start node service
+    - name: Start NodeJS service
+      service:
+        name: node_app
+        state: started
+        enabled: yes

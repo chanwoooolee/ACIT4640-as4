@@ -1,0 +1,39 @@
+# I put this nginx role to sets up the nginx configuration, this block will install the nginx
+- name: install the nginx package
+  tags: nginx
+  apt:
+    name: nginx
+    state: present
+    update_cache: yes
+
+# This block will copy html document to the server
+- name: copy html document to the server
+  tags: copy_files
+  copy:
+    src: ./files/index.html
+    dest: /var/www/html/index.html
+    owner: www-data
+    group: www-data
+    mode: u=rw,g=r,o=r
+
+# This block will copy nginx configuration file to the server
+- name: copy nginx config file to the server
+  copy:
+    src: ./files/nginx.conf
+    dest: /etc/nginx/sites-available/default
+
+- name: Enable site, link nginx config
+  file:
+    src: /etc/nginx/sites-available/default
+    dest: /etc/nginx/sites-enabled/default
+    state: link
+
+# Finally, this block will reload the nginx service so that the changes can apply with service
+- name: reload nginx service
+  tags: nginx
+  systemd:
+    name: nginx
+    state: reloaded
+    enabled: true
+    daemon_reload: true
+

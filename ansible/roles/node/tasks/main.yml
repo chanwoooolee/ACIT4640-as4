@@ -1,0 +1,27 @@
+# I put node role to set up nodejs. This block will install node and npm
+- name: Install GPG
+  tags: nodejs
+  apt:
+    name: gnupg
+    update_cache: yes
+    state: present
+
+# This block will add GPG key for nodejs
+- name: Install the gpg key for nodejs LTS
+  apt_key:
+    url: "https://deb.nodesource.com/gpgkey/nodesource.gpg.key"
+    state: present
+
+# This block will add node repository to Ubuntu
+- name: Install the nodejs LTS repos
+  apt_repository:
+    repo: "deb https://deb.nodesource.com/node_{{ NODEJS_VERSION }}.x {{ ansible_distribution_release }} main"
+    state: present
+    update_cache: yes
+
+# This block will install nodejs on server
+- name: Install NodeJS
+  apt:
+    name: nodejs
+    state: latest
+

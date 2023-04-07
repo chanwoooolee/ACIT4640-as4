@@ -1,0 +1,65 @@
+# I put app configuration file to setup the server. This block is the node app setup configuration
+- name: Create app directory for node app
+  file:
+    path: /var/www/html/app
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: 0604
+
+# This block copies filse needed to setup app on server (packages)
+- name: Copy package-lock.json to server
+  copy:
+    src: ./files/app/package-lock.json
+    dest: /var/www/html/app/package-lock.json
+    owner: www-data
+    group: www-data
+    mode: 0644
+
+
+- name: Copy package.json to server
+  tags: copy_files
+  copy:
+    src: ./files/app/package.json
+    dest: /var/www/html/app/package.json
+    owner: www-data
+    group: www-data
+    mode: 0644
+
+# This copies app.js to server
+- name: Copy app.js to server
+  tags: copy_files
+  copy:
+    src: ./files/app/app.js
+    dest: /var/www/html/app/app.js
+    owner: www-data
+    group: www-data
+    mode: 0644
+
+# This block copies service file to start app to server
+- name: Create service file
+  template:
+    src: ./files/node_app.service
+    dest: /etc/systemd/system/node_app.service
+  register: service_conf
+
+# Reload the systemd service so that the changes can be applied
+- name: Reload systemd daemon
+  tags: app, deploy, systemd
+  systemd:
+    daemon_reload: yes
+  when: service_conf.changed
+
+# Use npm to install necessary depdencies from lockfile
+- name: Install dependencies from lockfile
+  shell: npm ci
+  args:
+    chdir: /var/www/html/app
+
+# Start the NodeJs service
+- name: Start NodeJS service
+  service:
+    name: node_app
+    state: started
+    enabled: yes
+

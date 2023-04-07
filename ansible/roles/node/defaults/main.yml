@@ -1,0 +1,4 @@
+# I put this default main.tf to specify the version of the NodeJS and ansible distribution releases
+NODEJS_VERSION: "18"
+ansible_distribution_release: "jammy"
+
